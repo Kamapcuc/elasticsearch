@@ -128,11 +128,24 @@ public class TermSuggestion extends Suggestion<TermSuggestion.Entry> {
     public static class Entry extends
             org.elasticsearch.search.suggest.Suggest.Suggestion.Entry<TermSuggestion.Entry.Option> {
 
-        Entry(Text text, int offset, int length) {
+        boolean inIndex;
+
+        Entry(Text text, int offset, int length, boolean inIndex) {
             super(text, offset, length);
+            this.inIndex = inIndex;
         }
 
         Entry() {
+        }
+
+        public boolean isInIndex() {
+            return inIndex;
+        }
+
+        @Override
+        protected void writeFields(XContentBuilder builder) throws IOException {
+            super.writeFields(builder);
+            builder.field("inIndex", isInIndex());
         }
 
         @Override

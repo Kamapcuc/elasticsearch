@@ -500,9 +500,7 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
             @Override
             public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
                 builder.startObject();
-                builder.field(Fields.TEXT, text);
-                builder.field(Fields.OFFSET, offset);
-                builder.field(Fields.LENGTH, length);
+                writeFields(builder);
                 builder.startArray(Fields.OPTIONS);
                 for (Option option : options) {
                     option.toXContent(builder, params);
@@ -510,6 +508,12 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
                 builder.endArray();
                 builder.endObject();
                 return builder;
+            }
+
+            protected void writeFields(XContentBuilder builder) throws IOException {
+                builder.field(Fields.TEXT, text);
+                builder.field(Fields.OFFSET, offset);
+                builder.field(Fields.LENGTH, length);
             }
 
             /**
