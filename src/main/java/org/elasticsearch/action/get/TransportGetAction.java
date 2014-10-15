@@ -20,7 +20,6 @@
 package org.elasticsearch.action.get;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.action.RoutingMissingException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.single.shard.TransportShardSingleOperationAction;
 import org.elasticsearch.cluster.ClusterService;
@@ -80,9 +79,6 @@ public class TransportGetAction extends TransportShardSingleOperationAction<GetR
         // update the routing (request#index here is possibly an alias)
         request.request().routing(state.metaData().resolveIndexRouting(request.request().routing(), request.request().index()));
         // Fail fast on the node that received the request.
-        if (request.request().routing() == null && state.getMetaData().routingRequired(request.concreteIndex(), request.request().type())) {
-            throw new RoutingMissingException(request.concreteIndex(), request.request().type(), request.request().id());
-        }
     }
 
     @Override
