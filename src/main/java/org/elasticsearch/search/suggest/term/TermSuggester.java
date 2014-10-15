@@ -55,7 +55,9 @@ public final class TermSuggester extends Suggester<TermSuggestionContext> {
                     token.term, suggestion.getShardSize(), indexReader, suggestion.getDirectSpellCheckerSettings().suggestMode()
             );
             Text key = new BytesText(new BytesArray(token.term.bytes()));
-            TermSuggestion.Entry resultEntry = new TermSuggestion.Entry(key, token.startOffset, token.endOffset - token.startOffset);
+            int tokenLength = token.endOffset - token.startOffset;
+            boolean inIndex = indexReader.docFreq(token.term) > 0;
+            TermSuggestion.Entry resultEntry = new TermSuggestion.Entry(key, token.startOffset, tokenLength, inIndex);
             for (SuggestWord suggestWord : suggestedWords) {
                 Text word = new StringText(suggestWord.string);
                 resultEntry.addOption(new TermSuggestion.Entry.Option(word, suggestWord.freq, suggestWord.score));
