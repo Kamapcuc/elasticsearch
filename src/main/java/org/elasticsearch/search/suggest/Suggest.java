@@ -468,11 +468,15 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
                 return result;
             }
 
-            @Override
-            public void readFrom(StreamInput in) throws IOException {
+            protected void innerReadFrom(StreamInput in) throws IOException {
                 text = in.readText();
                 offset = in.readVInt();
                 length = in.readVInt();
+            }
+
+            @Override
+            public void readFrom(StreamInput in) throws IOException {
+                innerReadFrom(in);
                 int suggestedWords = in.readVInt();
                 options = new ArrayList<>(suggestedWords);
                 for (int j = 0; j < suggestedWords; j++) {
@@ -486,11 +490,15 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
                 return (O) new Option();
             }
 
-            @Override
-            public void writeTo(StreamOutput out) throws IOException {
+            protected void innerWriteTo(StreamOutput out) throws IOException {
                 out.writeText(text);
                 out.writeVInt(offset);
                 out.writeVInt(length);
+            }
+
+            @Override
+            public void writeTo(StreamOutput out) throws IOException {
+                innerWriteTo(out);
                 out.writeVInt(options.size());
                 for (Option option : options) {
                     option.writeTo(out);
@@ -500,9 +508,7 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
             @Override
             public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
                 builder.startObject();
-                builder.field(Fields.TEXT, text);
-                builder.field(Fields.OFFSET, offset);
-                builder.field(Fields.LENGTH, length);
+                writeFields(builder);
                 builder.startArray(Fields.OPTIONS);
                 for (Option option : options) {
                     option.toXContent(builder, params);
@@ -510,6 +516,12 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
                 builder.endArray();
                 builder.endObject();
                 return builder;
+            }
+
+            protected void writeFields(XContentBuilder builder) throws IOException {
+                builder.field(Fields.TEXT, text);
+                builder.field(Fields.OFFSET, offset);
+                builder.field(Fields.LENGTH, length);
             }
 
             /**
