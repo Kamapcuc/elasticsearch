@@ -128,7 +128,7 @@ public class TermSuggestion extends Suggestion<TermSuggestion.Entry> {
     public static class Entry extends
             org.elasticsearch.search.suggest.Suggest.Suggestion.Entry<TermSuggestion.Entry.Option> {
 
-        boolean inIndex;
+        protected boolean inIndex;
 
         Entry(Text text, int offset, int length, boolean inIndex) {
             super(text, offset, length);
@@ -140,6 +140,18 @@ public class TermSuggestion extends Suggestion<TermSuggestion.Entry> {
 
         public boolean isInIndex() {
             return inIndex;
+        }
+
+        @Override
+        protected void innerReadFrom(StreamInput in) throws IOException {
+            super.innerReadFrom(in);
+            inIndex = in.readBoolean();
+        }
+
+        @Override
+        protected void innerWriteTo(StreamOutput out) throws IOException {
+            super.innerWriteTo(out);
+            out.writeBoolean(inIndex);
         }
 
         @Override
