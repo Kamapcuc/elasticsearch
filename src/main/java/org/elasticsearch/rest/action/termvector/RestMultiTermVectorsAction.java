@@ -49,7 +49,6 @@ public class RestMultiTermVectorsAction extends BaseRestHandler {
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) throws Exception {
         MultiTermVectorsRequest multiTermVectorsRequest = new MultiTermVectorsRequest();
-        multiTermVectorsRequest.listenerThreaded(false);
         TermVectorRequest template = new TermVectorRequest();
         template.index(request.param("index"));
         template.type(request.param("type"));

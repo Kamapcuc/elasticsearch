@@ -55,7 +55,6 @@ public class RestSearchScrollAction extends BaseRestHandler {
             scrollId = RestActions.getRestContent(request).toUtf8();
         }
         SearchScrollRequest searchScrollRequest = new SearchScrollRequest(scrollId);
-        searchScrollRequest.listenerThreaded(false);
         String scroll = request.param("scroll");
         if (scroll != null) {
             searchScrollRequest.scroll(new Scroll(parseTimeValue(scroll, null)));
