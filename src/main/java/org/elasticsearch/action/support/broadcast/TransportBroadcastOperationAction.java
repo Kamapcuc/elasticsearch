@@ -298,7 +298,6 @@ public abstract class TransportBroadcastOperationAction<Request extends Broadcas
         @Override
         public void messageReceived(Request request, final TransportChannel channel) throws Exception {
             // we just send back a response, no need to fork a listener
-            request.listenerThreaded(false);
             execute(request, new ActionListener<Response>() {
                 @Override
                 public void onResponse(Response response) {

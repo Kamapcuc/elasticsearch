@@ -54,7 +54,6 @@ public class RestIndicesStatusAction extends BaseRestHandler {
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel, Client client) {
         IndicesStatusRequest indicesStatusRequest = new IndicesStatusRequest(Strings.splitStringByCommaToArray(request.param("index")));
-        indicesStatusRequest.listenerThreaded(false);
         indicesStatusRequest.indicesOptions(IndicesOptions.fromRequest(request, indicesStatusRequest.indicesOptions()));
         indicesStatusRequest.recovery(request.paramAsBoolean("recovery", indicesStatusRequest.recovery()));
         indicesStatusRequest.snapshot(request.paramAsBoolean("snapshot", indicesStatusRequest.snapshot()));

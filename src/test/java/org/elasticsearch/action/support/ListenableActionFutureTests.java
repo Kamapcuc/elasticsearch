@@ -33,7 +33,7 @@ public class ListenableActionFutureTests extends ElasticsearchTestCase {
     public void testListenerIsCallableFromNetworkThreads() throws Throwable {
         ThreadPool threadPool = new ThreadPool("testListenerIsCallableFromNetworkThreads");
         try {
-            final PlainListenableActionFuture<Object> future = new PlainListenableActionFuture<>(randomBoolean(), threadPool);
+            final PlainListenableActionFuture<Object> future = new PlainListenableActionFuture<>(threadPool);
             final CountDownLatch listenerCalled = new CountDownLatch(1);
             final AtomicReference<Throwable> error = new AtomicReference<>();
             final Object response = new Object();

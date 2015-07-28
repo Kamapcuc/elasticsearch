@@ -271,7 +271,6 @@ public class TransportAnalyzeAction extends TransportSingleCustomOperationAction
         @Override
         public void messageReceived(AnalyzeRequest request, final TransportChannel channel) throws Exception {
             // no need to have a threaded listener since we just send back a response
-            request.listenerThreaded(false);
             // if we have a local operation, execute it on a thread since we don't spawn
             request.operationThreaded(true);
             execute(request, new ActionListener<AnalyzeResponse>() {

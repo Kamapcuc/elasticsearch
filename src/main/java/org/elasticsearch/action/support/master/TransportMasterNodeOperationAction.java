@@ -245,7 +245,6 @@ public abstract class TransportMasterNodeOperationAction<Request extends MasterN
         @Override
         public void messageReceived(final Request request, final TransportChannel channel) throws Exception {
             // we just send back a response, no need to fork a listener
-            request.listenerThreaded(false);
             execute(request, new ActionListener<Response>() {
                 @Override
                 public void onResponse(Response response) {

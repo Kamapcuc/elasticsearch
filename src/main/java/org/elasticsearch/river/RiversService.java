@@ -37,7 +37,6 @@ import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.Injector;
-import org.elasticsearch.common.inject.Injectors;
 import org.elasticsearch.common.inject.ModulesBuilder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -218,7 +217,7 @@ public class RiversService extends AbstractLifecycleComponent<RiversService> {
                     closeRiver(riverName);
                     // also, double check and delete the river content if it was deleted (_meta does not exists)
                     try {
-                        client.prepareGet(riverIndexName, riverName.name(), "_meta").setListenerThreaded(true).execute(new ActionListener<GetResponse>() {
+                        client.prepareGet(riverIndexName, riverName.name(), "_meta").execute(new ActionListener<GetResponse>() {
                             @Override
                             public void onResponse(GetResponse getResponse) {
                                 if (!getResponse.isExists()) {

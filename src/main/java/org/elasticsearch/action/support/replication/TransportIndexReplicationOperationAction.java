@@ -87,7 +87,6 @@ public abstract class TransportIndexReplicationOperationAction<Request extends I
             ShardRequest shardRequest = newShardRequestInstance(request, shardIt.shardId().id());
             shardRequest.operationThreaded(true);
             // no need for threaded listener, we will fork when its done based on the index request
-            shardRequest.listenerThreaded(false);
             shardAction.execute(shardRequest, new ActionListener<ShardResponse>() {
                 @Override
                 public void onResponse(ShardResponse result) {

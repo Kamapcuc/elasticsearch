@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.support;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.*;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.logging.ESLogger;
