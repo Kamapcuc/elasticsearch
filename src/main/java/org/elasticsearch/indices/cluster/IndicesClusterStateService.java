@@ -343,7 +343,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
                 // we only create / update here
                 continue;
             }
-            List<String> typesToRefresh = null;
+            List<String> typesToRefresh = Lists.newArrayList();
             String index = indexMetaData.index();
             IndexService indexService = indicesService.indexService(index);
             if (indexService == null) {
@@ -353,7 +353,10 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
             MapperService mapperService = indexService.mapperService();
             // first, go over and update the _default_ mapping (if exists)
             if (indexMetaData.mappings().containsKey(MapperService.DEFAULT_MAPPING)) {
-                processMapping(index, mapperService, MapperService.DEFAULT_MAPPING, indexMetaData.mapping(MapperService.DEFAULT_MAPPING).source());
+                boolean requireRefresh = processMapping(index, mapperService, MapperService.DEFAULT_MAPPING, indexMetaData.mapping(MapperService.DEFAULT_MAPPING).source());
+                if (requireRefresh) {
+                    typesToRefresh.add(MapperService.DEFAULT_MAPPING);
+                }
             }
 
             // go over and add the relevant mappings (or update them)
@@ -366,19 +369,14 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
                 }
                 boolean requireRefresh = processMapping(index, mapperService, mappingType, mappingSource);
                 if (requireRefresh) {
-                    if (typesToRefresh == null) {
-                        typesToRefresh = Lists.newArrayList();
-                    }
                     typesToRefresh.add(mappingType);
                 }
             }
-            if (typesToRefresh != null) {
-                if (sendRefreshMapping) {
-                    nodeMappingRefreshAction.nodeMappingRefresh(event.state(),
-                            new NodeMappingRefreshAction.NodeMappingRefreshRequest(index, indexMetaData.uuid(),
-                                    typesToRefresh.toArray(new String[typesToRefresh.size()]), event.state().nodes().localNodeId())
-                    );
-                }
+            if (!typesToRefresh.isEmpty() && sendRefreshMapping) {
+                nodeMappingRefreshAction.nodeMappingRefresh(event.state(),
+                        new NodeMappingRefreshAction.NodeMappingRefreshRequest(index, indexMetaData.uuid(),
+                                typesToRefresh.toArray(new String[typesToRefresh.size()]), event.state().nodes().localNodeId())
+                );
             }
             // go over and remove mappings
             for (DocumentMapper documentMapper : mapperService.docMappers(true)) {
@@ -727,12 +725,11 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
                 try {
                     store.failIfCorrupted();
                     request = new StartRecoveryRequest(indexShard.shardId(), sourceNode, nodes.localNode(),
-                            false, store.getMetadata().asMap(), type, recoveryIdGenerator.incrementAndGet());
+                            false, store.getMetadataOrEmpty().asMap(), type, recoveryIdGenerator.incrementAndGet());
                 } finally {
                     store.decRef();
                 }
                 recoveryTarget.startRecovery(request, indexShard, new PeerRecoveryListener(request, shardRouting, indexService, indexMetaData));
-
             } catch (Throwable e) {
                 indexShard.engine().failEngine("corrupted preexisting index", e);
                 handleRecoveryFailure(indexService, indexMetaData, shardRouting, true, e);

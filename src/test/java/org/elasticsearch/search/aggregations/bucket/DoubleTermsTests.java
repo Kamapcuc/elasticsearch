@@ -33,6 +33,7 @@ import org.elasticsearch.search.aggregations.metrics.stats.Stats;
 import org.elasticsearch.search.aggregations.metrics.stats.extended.ExtendedStats;
 import org.elasticsearch.search.aggregations.metrics.sum.Sum;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.hamcrest.Matchers;
 import org.junit.Test;
 
@@ -54,7 +55,8 @@ import static org.hamcrest.core.IsNull.notNullValue;
  *
  */
 @ElasticsearchIntegrationTest.SuiteScopeTest
-public class DoubleTermsTests extends ElasticsearchIntegrationTest {
+@TestLogging("org.elasticsearch.action.search:TRACE,org.elasticsearch.search:TRACE")
+public class DoubleTermsTests extends AbstractTermsTests {
 
     private static final int NUM_DOCS = 5; // TODO: randomize the size?
     private static final String SINGLE_VALUED_FIELD_NAME = "d_value";
@@ -502,7 +504,7 @@ public class DoubleTermsTests extends ElasticsearchIntegrationTest {
         SearchResponse response = client().prepareSearch("idx").setTypes("type")
                 .addAggregation(terms("terms")
                         .collectMode(randomFrom(SubAggCollectionMode.values()))
-                        .script("doc['" + MULTI_VALUED_FIELD_NAME + "'].values"))
+                        .script("doc['" + MULTI_VALUED_FIELD_NAME + "']"))
                 .execute().actionGet();
 
         assertSearchResponse(response);
@@ -537,7 +539,7 @@ public class DoubleTermsTests extends ElasticsearchIntegrationTest {
             SearchResponse response = client().prepareSearch("idx").setTypes("type")
                     .addAggregation(terms("terms")
                             .collectMode(randomFrom(SubAggCollectionMode.values()))
-                            .script("doc['" + MULTI_VALUED_FIELD_NAME + "'].values")
+                            .script("doc['" + MULTI_VALUED_FIELD_NAME + "']")
                             .subAggregation(sum("sum")))
                     .execute().actionGet();
 
@@ -555,7 +557,7 @@ public class DoubleTermsTests extends ElasticsearchIntegrationTest {
         SearchResponse response = client().prepareSearch("idx").setTypes("type")
                 .addAggregation(terms("terms")
                         .collectMode(randomFrom(SubAggCollectionMode.values()))
-                        .script("doc['" + MULTI_VALUED_FIELD_NAME + "'].values")
+                        .script("doc['" + MULTI_VALUED_FIELD_NAME + "']")
                         .valueType(Terms.ValueType.DOUBLE)
                         .subAggregation(sum("sum")))
                 .execute().actionGet();
@@ -1046,4 +1048,8 @@ public class DoubleTermsTests extends ElasticsearchIntegrationTest {
         }
     }
 
+    @Test
+    public void otherDocCount() {
+        testOtherDocCount(SINGLE_VALUED_FIELD_NAME, MULTI_VALUED_FIELD_NAME);
+    }
 }

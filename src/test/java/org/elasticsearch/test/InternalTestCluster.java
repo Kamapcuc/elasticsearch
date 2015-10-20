@@ -46,6 +46,7 @@ import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.io.FileSystemUtils;
@@ -70,6 +71,7 @@ import org.elasticsearch.index.cache.filter.weighted.WeightedFilterCache;
 import org.elasticsearch.index.engine.IndexEngineModule;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
+import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.node.internal.InternalNode;
 import org.elasticsearch.node.service.NodeService;
@@ -151,6 +153,7 @@ public final class InternalTestCluster extends TestCluster {
     static final int DEFAULT_MAX_NUM_CLIENT_NODES = 1;
 
     static final boolean DEFAULT_ENABLE_RANDOM_BENCH_NODES = true;
+    static final boolean DEFAULT_ENABLE_HTTP_PIPELINING = true;
 
     public static final String NODE_MODE = nodeMode();
 
@@ -192,14 +195,15 @@ public final class InternalTestCluster extends TestCluster {
     private ServiceDisruptionScheme activeDisruptionScheme;
 
     public InternalTestCluster(long clusterSeed, int minNumDataNodes, int maxNumDataNodes, String clusterName, int numClientNodes, boolean enableRandomBenchNodes,
-                               int jvmOrdinal, String nodePrefix) {
-        this(clusterSeed, minNumDataNodes, maxNumDataNodes, clusterName, DEFAULT_SETTINGS_SOURCE, numClientNodes, enableRandomBenchNodes, jvmOrdinal, nodePrefix);
+                               boolean enableHttpPipelining, int jvmOrdinal, String nodePrefix) {
+        this(clusterSeed, minNumDataNodes, maxNumDataNodes, clusterName, DEFAULT_SETTINGS_SOURCE, numClientNodes, enableRandomBenchNodes, enableHttpPipelining, jvmOrdinal, nodePrefix);
     }
 
     public InternalTestCluster(long clusterSeed,
                                int minNumDataNodes, int maxNumDataNodes, String clusterName, SettingsSource settingsSource, int numClientNodes,
-                               boolean enableRandomBenchNodes,
+                               boolean enableRandomBenchNodes, boolean enableHttpPipelining,
                                int jvmOrdinal, String nodePrefix) {
+        super(clusterSeed);
         this.clusterName = clusterName;
 
         if (minNumDataNodes < 0 || maxNumDataNodes < 0) {
@@ -265,6 +269,7 @@ public final class InternalTestCluster extends TestCluster {
         builder.put("config.ignore_system_properties", true);
         builder.put("node.mode", NODE_MODE);
         builder.put("script.disable_dynamic", false);
+        builder.put("http.pipelining", enableHttpPipelining);
         builder.put("plugins." + PluginsService.LOAD_PLUGIN_FROM_CLASSPATH, false);
         if (Strings.hasLength(System.getProperty("es.logger.level"))) {
             builder.put("logger.level", System.getProperty("es.logger.level"));
@@ -272,6 +277,10 @@ public final class InternalTestCluster extends TestCluster {
         if (Strings.hasLength(System.getProperty("es.logger.prefix"))) {
             builder.put("logger.prefix", System.getProperty("es.logger.level"));
         }
+        // Default the watermarks to absurdly low to prevent the tests
+        // from failing on nodes without enough disk space
+        builder.put(DiskThresholdDecider.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK, "1b");
+        builder.put(DiskThresholdDecider.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK, "1b");
         defaultSettings = builder.build();
         executor = EsExecutors.newCached(0, TimeUnit.SECONDS, EsExecutors.daemonThreadFactory("test_" + clusterName));
         this.hasFilterCache = random.nextBoolean();
@@ -403,6 +412,11 @@ public final class InternalTestCluster extends TestCluster {
         }
         if (random.nextBoolean()) {
             builder.put(MapperService.FIELD_MAPPERS_COLLECTION_SWITCH, RandomInts.randomIntBetween(random, 0, 5));
+        }
+
+        if (random.nextInt(10) == 0) {
+            builder.put(HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_TYPE_SETTING, "noop");
+            builder.put(HierarchyCircuitBreakerService.FIELDDATA_CIRCUIT_BREAKER_TYPE_SETTING, "noop");
         }
 
         return builder.build();
@@ -761,11 +775,16 @@ public final class InternalTestCluster extends TestCluster {
             transportClient = null;
         }
 
+        void closeNode() {
+            registerDataPath();
+            node.close();
+        }
+
         void restart(RestartCallback callback) throws Exception {
             assert callback != null;
             resetClient();
             if (!node.isClosed()) {
-                node.close();
+                closeNode();
             }
             Settings newSettings = callback.onNodeStopped(name);
             if (newSettings == null) {
@@ -780,12 +799,19 @@ public final class InternalTestCluster extends TestCluster {
             node = (InternalNode) nodeBuilder().settings(node.settings()).settings(newSettings).node();
         }
 
+        void registerDataPath() {
+            NodeEnvironment nodeEnv = getInstanceFromNode(NodeEnvironment.class, node);
+            if (nodeEnv.hasNodeFile()) {
+                dataDirToClean.addAll(Arrays.asList(nodeEnv.nodeDataLocations()));
+            }
+        }
+
 
         @Override
         public void close() throws IOException {
             resetClient();
             closed.set(true);
-            node.close();
+            closeNode();
         }
     }
 
@@ -1177,7 +1203,7 @@ public final class InternalTestCluster extends TestCluster {
                 if (activeDisruptionScheme != null) {
                     activeDisruptionScheme.removeFromNode(nodeAndClient.name, this);
                 }
-                nodeAndClient.node.close();
+                nodeAndClient.closeNode();
             }
             for (NodeAndClient nodeAndClient : nodes.values()) {
                 logger.info("Starting node [{}] ", nodeAndClient.name);

@@ -28,16 +28,24 @@ import org.elasticsearch.action.admin.indices.segments.IndexShardSegments;
 import org.elasticsearch.action.admin.indices.segments.IndicesSegmentResponse;
 import org.elasticsearch.action.admin.indices.segments.ShardSegments;
 import org.elasticsearch.action.index.IndexRequestBuilder;
+import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
+import org.elasticsearch.cluster.routing.allocation.decider.ConcurrentRebalanceAllocationDecider;
+import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.engine.Segment;
 import org.elasticsearch.node.internal.InternalNode;
 import org.elasticsearch.test.ElasticsearchBackwardsCompatIntegrationTest;
+import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.rest.client.http.HttpRequestBuilder;
 import org.elasticsearch.test.rest.client.http.HttpResponse;
 import org.elasticsearch.test.rest.json.JsonPath;
+import org.junit.After;
 import org.junit.BeforeClass;
 
 import java.net.InetSocketAddress;
@@ -47,6 +55,7 @@ import java.util.Map;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 
+@ElasticsearchIntegrationTest.ClusterScope(scope = ElasticsearchIntegrationTest.Scope.TEST)   // test scope since we set cluster wide settings
 public class UpgradeTest extends ElasticsearchBackwardsCompatIntegrationTest {
 
     @BeforeClass
@@ -61,6 +70,10 @@ public class UpgradeTest extends ElasticsearchBackwardsCompatIntegrationTest {
     }
 
     public void testUpgrade() throws Exception {
+        // allow the cluster to rebalance quickly - 2 concurrent rebalance are default we can do higher
+        ImmutableSettings.Builder builder = ImmutableSettings.builder();
+        builder.put(ConcurrentRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_CLUSTER_CONCURRENT_REBALANCE, 100);
+        client().admin().cluster().prepareUpdateSettings().setPersistentSettings(builder).get();
 
         int numIndexes = randomIntBetween(2, 4);
         String[] indexNames = new String[numIndexes];
@@ -81,12 +94,12 @@ public class UpgradeTest extends ElasticsearchBackwardsCompatIntegrationTest {
             assertAllShardsOnNodes(indexName, backwardsCluster().backwardsNodePattern());
 
             int numDocs = scaledRandomIntBetween(100, 1000);
-            List<IndexRequestBuilder> builder = new ArrayList<>();
+            List<IndexRequestBuilder> docs = new ArrayList<>();
             for (int j = 0; j < numDocs; ++j) {
                 String id = Integer.toString(j);
-                builder.add(client().prepareIndex(indexName, "type1", id).setSource("text", "sometext"));
+                docs.add(client().prepareIndex(indexName, "type1", id).setSource("text", "sometext"));
             }
-            indexRandom(true, builder);
+            indexRandom(true, docs);
             ensureGreen(indexName);
             if (globalCompatibilityVersion().before(Version.V_1_4_0_Beta1)) {
                 // before 1.4 and the wait_if_ongoing flag, flushes could fail randomly, so we
@@ -103,17 +116,29 @@ public class UpgradeTest extends ElasticsearchBackwardsCompatIntegrationTest {
             
             // index more docs that won't be flushed
             numDocs = scaledRandomIntBetween(100, 1000);
-            builder = new ArrayList<>();
+            docs = new ArrayList<>();
             for (int j = 0; j < numDocs; ++j) {
                 String id = Integer.toString(j);
-                builder.add(client().prepareIndex(indexName, "type2", id).setSource("text", "someothertext"));
+                docs.add(client().prepareIndex(indexName, "type2", id).setSource("text", "someothertext"));
             }
-            indexRandom(true, builder);
+            indexRandom(true, docs);
             ensureGreen(indexName);
-            refresh();
         }
         backwardsCluster().allowOnAllNodes(indexNames);
+        ensureGreen();
+        // set the balancing threshold to something very highish such that no rebalancing happens after the upgrade
+        builder = ImmutableSettings.builder();
+        builder.put(BalancedShardsAllocator.SETTING_THRESHOLD, 100.0f);
+        client().admin().cluster().prepareUpdateSettings().setPersistentSettings(builder).get();
+        // disable allocation entirely until all nodes are upgraded
+        builder = ImmutableSettings.builder();
+        builder.put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE, EnableAllocationDecider.Allocation.NONE);
+        client().admin().cluster().prepareUpdateSettings().setTransientSettings(builder).get();
         backwardsCluster().upgradeAllNodes();
+        // we are done - enable allocation again
+        builder = ImmutableSettings.builder();
+        builder.put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE, EnableAllocationDecider.Allocation.ALL);
+        client().admin().cluster().prepareUpdateSettings().setTransientSettings(builder).get();
         ensureGreen();
         
         final HttpRequestBuilder httpClient = httpClient();
@@ -121,6 +146,9 @@ public class UpgradeTest extends ElasticsearchBackwardsCompatIntegrationTest {
         assertNotUpgraded(httpClient, null);
         final String indexToUpgrade = "test" + randomInt(numIndexes - 1);
         
+        logger.debug("--> Running upgrade on index " + indexToUpgrade);
+        logClusterState();
+        logSegmentsState(indexToUpgrade);
         runUpgrade(httpClient, indexToUpgrade);
         awaitBusy(new Predicate<Object>() {
             @Override
@@ -132,9 +160,30 @@ public class UpgradeTest extends ElasticsearchBackwardsCompatIntegrationTest {
                 }
             }
         });
+        logger.debug("--> Single index upgrade complete");
+        logClusterState();
+        logSegmentsState(indexToUpgrade);
         
+        logger.debug("--> Running upgrade on the rest of the indexes");
+        logClusterState();
+        logSegmentsState(null);
         runUpgrade(httpClient, null, "wait_for_completion", "true");
+        logger.debug("--> Full upgrade complete");
+        logClusterState();
+        logSegmentsState(null);
         assertUpgraded(httpClient, null);
+    }
+
+    void logSegmentsState(String index) throws Exception {
+        // double check using the segments api that all segments are actually upgraded
+        IndicesSegmentResponse segsRsp;
+        if (index == null) {
+            segsRsp = client().admin().indices().prepareSegments().get();
+        } else {
+            segsRsp = client().admin().indices().prepareSegments(index).get();
+        }
+        XContentBuilder builder = JsonXContent.contentBuilder();
+        logger.debug("Segments State: \n\n" + segsRsp.toXContent(builder.prettyPrint(), ToXContent.EMPTY_PARAMS).string());
     }
     
     static String upgradePath(String index) {
