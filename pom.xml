@@ -81,7 +81,7 @@
         <dependency>
             <groupId>org.apache.lucene</groupId>
             <artifactId>lucene-core</artifactId>
-            <version>4.10.2-patched</version>
+            <version>${lucene.maven.version}</version>
             <scope>compile</scope>
         </dependency>
         <dependency>
