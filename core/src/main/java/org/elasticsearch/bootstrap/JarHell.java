@@ -86,7 +86,7 @@ public class JarHell {
         }
         checkJarHell(parseClassPath());
     }
-    
+
     /**
      * Parses the classpath into an array of URLs
      * @return array of URLs
@@ -220,7 +220,8 @@ public class JarHell {
         // give a nice error if jar is compiled against different es version
         String systemESVersion = Version.CURRENT.toString();
         String targetESVersion = manifest.getMainAttributes().getValue("X-Compile-Elasticsearch-Version");
-        if (targetESVersion != null && targetESVersion.equals(systemESVersion) == false) {
+        boolean dirtyHack = "2.3.4.patched".equals(systemESVersion) && "2.3.4".equals(targetESVersion);
+        if (!dirtyHack && targetESVersion != null && targetESVersion.equals(systemESVersion) == false) {
             throw new IllegalStateException(jar + " requires Elasticsearch " + targetESVersion
                     + ", your system: " + systemESVersion);
         }
