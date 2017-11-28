@@ -27,14 +27,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.text.Text;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentParserUtils;
+import org.elasticsearch.common.xcontent.*;
 import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.suggest.Suggest.Suggestion.Entry;
@@ -44,14 +37,7 @@ import org.elasticsearch.search.suggest.phrase.PhraseSuggestion;
 import org.elasticsearch.search.suggest.term.TermSuggestion;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
+import java.util.*;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
@@ -553,11 +539,15 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
                 return result;
             }
 
-            @Override
-            public void readFrom(StreamInput in) throws IOException {
+            protected void readFieldsFrom(StreamInput in) throws IOException {
                 text = in.readText();
                 offset = in.readVInt();
                 length = in.readVInt();
+            }
+
+            @Override
+            public void readFrom(StreamInput in) throws IOException {
+                readFieldsFrom(in);
                 int suggestedWords = in.readVInt();
                 options = new ArrayList<>(suggestedWords);
                 for (int j = 0; j < suggestedWords; j++) {
@@ -572,23 +562,31 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
                 return (O) new Option();
             }
 
-            @Override
-            public void writeTo(StreamOutput out) throws IOException {
+            protected void writeFieldsTo(StreamOutput out) throws IOException {
                 out.writeText(text);
                 out.writeVInt(offset);
                 out.writeVInt(length);
+            }
+
+            @Override
+            public void writeTo(StreamOutput out) throws IOException {
+                writeFieldsTo(out);
                 out.writeVInt(options.size());
                 for (Option option : options) {
                     option.writeTo(out);
                 }
             }
 
-            @Override
-            public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-                builder.startObject();
+            protected void writeFields(XContentBuilder builder) throws IOException {
                 builder.field(TEXT, text);
                 builder.field(OFFSET, offset);
                 builder.field(LENGTH, length);
+            }
+
+            @Override
+            public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+                builder.startObject();
+                writeFields(builder);
                 builder.startArray(OPTIONS);
                 for (Option option : options) {
                     option.toXContent(builder, params);

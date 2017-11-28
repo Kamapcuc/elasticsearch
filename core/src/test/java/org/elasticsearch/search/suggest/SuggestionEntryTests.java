@@ -64,7 +64,7 @@ public class SuggestionEntryTests extends ESTestCase {
         Entry entry;
         Supplier<Option> supplier;
         if (entryType == TermSuggestion.Entry.class) {
-            entry = new TermSuggestion.Entry(entryText, offset, length);
+            entry = new TermSuggestion.Entry(entryText, offset, length, true);
             supplier = TermSuggestionOptionTests::createTestItem;
         } else if (entryType == PhraseSuggestion.Entry.class) {
             entry = new PhraseSuggestion.Entry(entryText, offset, length, randomDouble());

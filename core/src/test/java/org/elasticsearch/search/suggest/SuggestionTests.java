@@ -227,7 +227,7 @@ public class SuggestionTests extends ESTestCase {
         }
         {
             TermSuggestion.Entry.Option option = new TermSuggestion.Entry.Option(new Text("someText"), 10, 1.3f);
-            TermSuggestion.Entry entry = new TermSuggestion.Entry(new Text("entryText"), 42, 313);
+            TermSuggestion.Entry entry = new TermSuggestion.Entry(new Text("entryText"), 42, 313, true);
             entry.addOption(option);
             TermSuggestion suggestion = new TermSuggestion("suggestionName", 5, SortBy.SCORE);
             suggestion.addTerm(entry);
