@@ -123,7 +123,12 @@ public class Version implements Comparable<Version> {
     public static final int V_6_0_0_ID = 6000099;
     public static final Version V_6_0_0 =
         new Version(V_6_0_0_ID, org.apache.lucene.util.Version.LUCENE_7_0_1);
-    public static final Version CURRENT = V_6_0_0;
+    public static final int V_6_0_0_patched_ID = 6000142;
+    public static final Version V_6_0_0_patched =
+               new Version(V_6_0_0_patched_ID, org.apache.lucene.util.Version.LUCENE_7_0_1);
+    public static final Version CURRENT = V_6_0_0_patched;
+
+    public static final String V_6_0_0_patched_SID = "6.0.0-patched";
 
     // unreleased versions must be added to the above list with the suffix _UNRELEASED (with the exception of CURRENT)
 
@@ -138,6 +143,8 @@ public class Version implements Comparable<Version> {
 
     public static Version fromId(int id) {
         switch (id) {
+            case V_6_0_0_patched_ID:
+                return V_6_0_0_patched;
             case V_6_0_0_ID:
                 return V_6_0_0;
             case V_6_0_0_rc2_ID:
@@ -262,6 +269,8 @@ public class Version implements Comparable<Version> {
         if (!Strings.hasLength(version)) {
             return Version.CURRENT;
         }
+        if (V_6_0_0_patched_SID.equals(version))
+            return V_6_0_0_patched;
         final boolean snapshot; // this is some BWC for 2.x and before indices
         if (snapshot = version.endsWith("-SNAPSHOT")) {
             version = version.substring(0, version.length() - 9);
@@ -403,6 +412,8 @@ public class Version implements Comparable<Version> {
 
     @Override
     public String toString() {
+        if (id == V_6_0_0_patched_ID)
+            return V_6_0_0_patched_SID;
         StringBuilder sb = new StringBuilder();
         sb.append(major).append('.').append(minor).append('.').append(revision);
         if (isAlpha()) {
@@ -441,11 +452,8 @@ public class Version implements Comparable<Version> {
 
         Version version = (Version) o;
 
-        if (id != version.id) {
-            return false;
-        }
-
-        return true;
+        boolean dirtyHack = id == V_6_0_0_ID && version.id == V_6_0_0_patched_ID;
+        return dirtyHack || id == version.id;
     }
 
     @Override
